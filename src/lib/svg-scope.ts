@@ -33,28 +33,29 @@ function prefixCssSelectors(
   aliases: string[]
 ): PrefixResult {
   try {
-    const ast = parse(css, { parseAtrulePrelude: true, parseRulePrelude: true })
+    const ast = parse(css, {
+      parseAtrulePrelude: true,
+      parseRulePrelude: true,
+    }) as any
     let changed = false
     let allScoped = true
     const warnings: string[] = []
     const aliasSet = new Set(
-      aliases.filter(
-        (name) => name && name !== id
-      )
+      aliases.filter((name) => name && name !== id)
     )
 
     walk(ast, {
-      enter(node) {
+      enter(node: any) {
         if (node.type !== 'Rule' || node.prelude.type !== 'SelectorList') {
           return
         }
 
-        node.prelude.children.forEach((selector) => {
+        node.prelude.children.forEach((selector: any) => {
           let hadTargetBefore = false
           let hadAliasBefore = false
           let hasOtherId = false
 
-          selector.children.forEach((child) => {
+          selector.children.forEach((child: any) => {
             if (child.type !== 'IdSelector') {
               return
             }

@@ -39,7 +39,7 @@ const generateEntryId = () =>
 
 function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const copyTimeoutRef = useRef<number>()
+  const copyTimeoutRef = useRef<number | null>(null)
 
   const [entries, setEntries] = useState<SvgEntry[]>([])
   const [activeEntryId, setActiveEntryId] = useState<string | null>(null)
