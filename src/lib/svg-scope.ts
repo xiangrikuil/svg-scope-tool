@@ -3,11 +3,22 @@ import { generate, parse, walk } from 'css-tree'
 interface PrefixResult {
   css: string
   changed: boolean
+  selectorsChanged: boolean
+  transitionsStripped: boolean
   allScoped: boolean
   warnings: string[]
 }
 
 const ID_SAFE_PATTERN = /[^\p{Letter}\p{Number}_-]+/gu
+const VENDOR_PREFIX_PATTERN = /^-[a-z]+-/
+
+function isTransitionProperty(property: string) {
+  const normalized = property.trim().toLowerCase()
+  const withoutVendor = normalized.replace(VENDOR_PREFIX_PATTERN, '')
+  return (
+    withoutVendor === 'transition' || withoutVendor.startsWith('transition-')
+  )
+}
 
 function sanitizeId(value: string) {
   const normalized = value.normalize('NFKC')
@@ -37,15 +48,24 @@ function prefixCssSelectors(
       parseAtrulePrelude: true,
       parseRulePrelude: true,
     }) as any
-    let changed = false
+    let selectorsChanged = false
+    let transitionsStripped = false
     let allScoped = true
     const warnings: string[] = []
     const aliasSet = new Set(
       aliases.filter((name) => name && name !== id)
     )
 
-    walk(ast, {
-      enter(node: any) {
+    ;(walk as any)(ast, {
+      enter(node: any, item: any, list: any) {
+        if (node.type === 'Declaration' && isTransitionProperty(node.property)) {
+          if (list && item) {
+            list.remove(item)
+            transitionsStripped = true
+          }
+          return
+        }
+
         if (node.type !== 'Rule' || node.prelude.type !== 'SelectorList') {
           return
         }
@@ -72,7 +92,7 @@ function prefixCssSelectors(
           })
 
           if (hadAliasBefore) {
-            changed = true
+            selectorsChanged = true
           }
 
           const wasScoped = hadTargetBefore || hadAliasBefore
@@ -101,14 +121,17 @@ function prefixCssSelectors(
             type: 'IdSelector',
             name: id,
           })
-          changed = true
+          selectorsChanged = true
         })
       },
     })
 
+    const changed = selectorsChanged || transitionsStripped
     return {
       css: generate(ast),
       changed,
+      selectorsChanged,
+      transitionsStripped,
       allScoped,
       warnings,
     }
@@ -116,11 +139,48 @@ function prefixCssSelectors(
     return {
       css,
       changed: false,
+      selectorsChanged: false,
+      transitionsStripped: false,
       allScoped: false,
       warnings: [
         '无法解析样式文本，已跳过自动作用域处理。请手动检查这段 CSS。',
       ],
     }
+  }
+}
+
+function stripTransitionFromInlineStyle(styleValue: string) {
+  const trimmed = styleValue.trim()
+  if (!trimmed) return { style: styleValue, changed: false }
+
+  try {
+    const ast = parse(trimmed, { context: 'declarationList' }) as any
+    let changed = false
+
+    ;(walk as any)(ast, {
+      enter(node: any, item: any, list: any) {
+        if (node.type !== 'Declaration') return
+        if (!isTransitionProperty(node.property)) return
+        if (list && item) {
+          list.remove(item)
+          changed = true
+        }
+      },
+    })
+
+    const next = generate(ast).trim()
+    return { style: next, changed }
+  } catch {
+    const next = trimmed
+      .replace(
+        /(^|;)\s*(-[a-z]+-)?transition(-[a-z-]+)?\s*:[^;]*;?/gi,
+        '$1'
+      )
+      .replace(/;{2,}/g, ';')
+      .replace(/^\s*;\s*/g, '')
+      .trim()
+
+    return { style: next, changed: next !== trimmed }
   }
 }
 
@@ -259,13 +319,29 @@ export function scopeSvgContent(
 
     const prefixResult = prefixCssSelectors(content, targetId, aliasIds)
     scopedBefore = scopedBefore && prefixResult.allScoped
-    const blockScopedAfter = prefixResult.allScoped || prefixResult.changed
+    const blockScopedAfter =
+      prefixResult.allScoped || prefixResult.selectorsChanged
     scopedAfter = scopedAfter && blockScopedAfter
     if (prefixResult.changed) {
       changed = true
       style.textContent = prefixResult.css
     }
     warnings.push(...prefixResult.warnings)
+  })
+
+  Array.from(svg.querySelectorAll('[style]')).forEach((node) => {
+    const styleValue = node.getAttribute('style') ?? ''
+    if (!styleValue.trim()) return
+
+    const stripped = stripTransitionFromInlineStyle(styleValue)
+    if (!stripped.changed) return
+
+    changed = true
+    if (!stripped.style) {
+      node.removeAttribute('style')
+      return
+    }
+    node.setAttribute('style', stripped.style)
   })
 
   Array.from(svg.querySelectorAll('[class]')).forEach((node) => {

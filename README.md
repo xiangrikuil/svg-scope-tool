@@ -1,6 +1,12 @@
-# React + TypeScript + Vite
+# SVG Scope Tool
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+上传 SVG，自动修正 `<style>` 里的选择器作用域（统一挂到 `<svg id="...">` 下），并移除可能导致闪烁/抖动的 `transition` 过渡声明（包含 `<style>` 与元素内联 `style`）。
+
+## 特性
+
+- 自动生成/修正 `svg` 的 `id`
+- 将 `<style>` 中未作用域的选择器前置为 `#<svgId> ...`
+- 清理 `transition` / `transition-*`（以及 `-webkit-` 等前缀变体）
 
 Currently, two official plugins are available:
 
