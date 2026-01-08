@@ -11,6 +11,10 @@ interface PrefixResult {
 
 const ID_SAFE_PATTERN = /[^\p{Letter}\p{Number}_-]+/gu
 const VENDOR_PREFIX_PATTERN = /^-[a-z]+-/
+const LEVEL_RECT_IDS = ['level', 'level1', 'level2'] as const
+
+type LevelRectId = (typeof LEVEL_RECT_IDS)[number]
+type LevelTransitionSeconds = Partial<Record<LevelRectId, number>>
 
 function isTransitionProperty(property: string) {
   const normalized = property.trim().toLowerCase()
@@ -184,6 +188,82 @@ function stripTransitionFromInlineStyle(styleValue: string) {
   }
 }
 
+function parseSvgNumber(value: string | null) {
+  if (!value) return null
+  const num = Number.parseFloat(value)
+  return Number.isFinite(num) ? num : null
+}
+
+function formatSvgNumber(value: number) {
+  const rounded = Math.round(value * 1000) / 1000
+  return `${rounded}`
+}
+
+function formatCssSeconds(value: number) {
+  const rounded = Math.round(value * 1000) / 1000
+  return `${rounded}s`
+}
+
+function appendInlineStyle(styleValue: string, declaration: string) {
+  const trimmed = styleValue.trim()
+  if (!trimmed) return declaration.trim()
+  const joiner = trimmed.endsWith(';') ? ' ' : '; '
+  return `${trimmed}${joiner}${declaration.trim()}`
+}
+
+function ensureLevelRectTransform(rect: SVGRectElement) {
+  const x = parseSvgNumber(rect.getAttribute('x')) ?? 0
+  const y = parseSvgNumber(rect.getAttribute('y')) ?? 0
+  const width = parseSvgNumber(rect.getAttribute('width'))
+  const height = parseSvgNumber(rect.getAttribute('height'))
+
+  if (width === null || height === null) return false
+
+  const cx = x + width / 2
+  const cy = y + height / 2
+  const rotate = `rotate(180 ${formatSvgNumber(cx)} ${formatSvgNumber(cy)})`
+  const existing = rect.getAttribute('transform')?.trim() ?? ''
+  if (existing.includes(rotate)) return false
+
+  rect.setAttribute('transform', existing ? `${existing} ${rotate}` : rotate)
+  return true
+}
+
+function ensureLevelRectTransitionInlineStyle(rect: SVGRectElement, seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return false
+
+  const existingStyle = rect.getAttribute('style') ?? ''
+  const declaration = `transition: height ${formatCssSeconds(seconds)};`
+  const nextStyle = appendInlineStyle(existingStyle, declaration)
+  if (nextStyle === existingStyle) return false
+  rect.setAttribute('style', nextStyle)
+  return true
+}
+
+function applyLevelEnhancements(
+  svg: SVGSVGElement,
+  levelTransitionSeconds?: LevelTransitionSeconds
+) {
+  const rectIds = LEVEL_RECT_IDS.filter((rectId) =>
+    svg.querySelector(`rect#${rectId}`)
+  ) as LevelRectId[]
+
+  if (!rectIds.length) {
+    return { changed: false, rectIds: [] as LevelRectId[] }
+  }
+
+  let changed = false
+  rectIds.forEach((rectId) => {
+    const rect = svg.querySelector(`rect#${rectId}`) as SVGRectElement | null
+    if (!rect) return
+    changed = ensureLevelRectTransform(rect) || changed
+    const seconds = levelTransitionSeconds?.[rectId] ?? 5
+    changed = ensureLevelRectTransitionInlineStyle(rect, seconds) || changed
+  })
+
+  return { changed, rectIds }
+}
+
 export interface SvgScopeResult {
   ok: boolean
   error?: string
@@ -195,12 +275,14 @@ export interface SvgScopeResult {
   processed: string
   classes: string[]
   warnings: string[]
+  levelRects: LevelRectId[]
 }
 
 interface ScopeOptions {
   desiredId?: string
   fileName?: string
   forceNewId?: boolean
+  levelTransitionSeconds?: LevelTransitionSeconds
 }
 
 function deriveIdFromFileName(fileName?: string) {
@@ -235,11 +317,12 @@ export function scopeSvgContent(
       processed: svgContent,
       classes: [],
       warnings: [],
+      levelRects: [],
     }
   }
 
-  const svg = doc.documentElement
-  if (!svg || svg.tagName.toLowerCase() !== 'svg') {
+  const root = doc.documentElement
+  if (!root || root.tagName.toLowerCase() !== 'svg') {
     return {
       ok: false,
       error: '文件中没有找到 <svg> 根节点。',
@@ -251,9 +334,11 @@ export function scopeSvgContent(
       processed: svgContent,
       classes: [],
       warnings: [],
+      levelRects: [],
     }
   }
 
+  const svg = root as unknown as SVGSVGElement
   const currentId = svg.getAttribute('id')?.trim() ?? ''
   const sanitizedCurrentId = forceNewId ? '' : sanitizeId(currentId)
   const nextIdCandidate =
@@ -279,6 +364,7 @@ export function scopeSvgContent(
       processed: svgContent,
       classes: [],
       warnings: [],
+      levelRects: [],
     }
   }
 
@@ -344,6 +430,14 @@ export function scopeSvgContent(
     node.setAttribute('style', stripped.style)
   })
 
+  const levelEnhancements = applyLevelEnhancements(
+    svg,
+    options.levelTransitionSeconds
+  )
+  if (levelEnhancements.changed) {
+    changed = true
+  }
+
   Array.from(svg.querySelectorAll('[class]')).forEach((node) => {
     const classValue = node.getAttribute('class')
     classValue
@@ -365,5 +459,6 @@ export function scopeSvgContent(
     processed,
     classes: Array.from(classes.values()).sort(),
     warnings,
+    levelRects: levelEnhancements.rectIds,
   }
 }
