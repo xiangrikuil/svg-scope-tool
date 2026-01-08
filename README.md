@@ -1,12 +1,13 @@
 # SVG Scope Tool
 
-上传 SVG，自动修正 `<style>` 里的选择器作用域（统一挂到 `<svg id="...">` 下），并移除可能导致闪烁/抖动的 `transition` 过渡声明（包含 `<style>` 与元素内联 `style`）。
+上传 SVG，自动修正 `<style>` 里的选择器作用域（统一挂到 `<svg id="...">` 下），并移除可能导致闪烁/抖动的 `transition` 过渡声明（包含 `<style>` 与元素内联 `style`）。如果检测到 `rect#level` / `rect#level1` / `rect#level2`，会额外注入 `transform` 反转，并为每个液位 rect 写入内联 `transition: height ...`（若原本已有 transition 则默认沿用其秒数，否则默认 5s，可在界面里分别调整）。
 
 ## 特性
 
 - 自动生成/修正 `svg` 的 `id`
 - 将 `<style>` 中未作用域的选择器前置为 `#<svgId> ...`
 - 清理 `transition` / `transition-*`（以及 `-webkit-` 等前缀变体）
+- 若存在 `rect#level` / `rect#level1` / `rect#level2`：自动添加 `rotate(180 cx cy)`，并为其写入内联 `transition: height ...`（可在界面设置每个液位的秒数，填 `0` 可关闭；支持在预览区调 height 演示动画）
 
 Currently, two official plugins are available:
 
