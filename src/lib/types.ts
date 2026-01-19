@@ -1,6 +1,6 @@
 import type { SvgScopeResult } from '@/lib/svg-scope'
 
-export type LevelRectId = 'level' | 'level1' | 'level2'
+export type LevelRectId = 'level' | 'level1' | 'level_1' | 'level2'
 
 export interface SvgEntry {
   id: string
