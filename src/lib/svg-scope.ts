@@ -11,7 +11,7 @@ interface PrefixResult {
 
 const ID_SAFE_PATTERN = /[^\p{Letter}\p{Number}_-]+/gu
 const VENDOR_PREFIX_PATTERN = /^-[a-z]+-/
-const LEVEL_RECT_IDS = ['level', 'level1', 'level2'] as const
+const LEVEL_RECT_IDS = ['level', 'level1', 'level_1', 'level2'] as const
 
 type LevelRectId = (typeof LEVEL_RECT_IDS)[number]
 type LevelTransitionSeconds = Partial<Record<LevelRectId, number>>

@@ -38,7 +38,7 @@ const generateEntryId = () =>
     : `entry-${Math.random().toString(36).slice(2, 10)}`
 
 const DEFAULT_LEVEL_TRANSITION_SECONDS = 5
-const LEVEL_RECT_IDS: LevelRectId[] = ['level', 'level1', 'level2']
+const LEVEL_RECT_IDS: LevelRectId[] = ['level', 'level1', 'level_1', 'level2']
 
 function splitTopLevelCommas(value: string) {
   const segments: string[] = []
@@ -186,6 +186,7 @@ function App() {
       levelTransitionSeconds: {
         level: DEFAULT_LEVEL_TRANSITION_SECONDS,
         level1: DEFAULT_LEVEL_TRANSITION_SECONDS,
+        level_1: DEFAULT_LEVEL_TRANSITION_SECONDS,
         level2: DEFAULT_LEVEL_TRANSITION_SECONDS,
       },
       rawContent: '',
